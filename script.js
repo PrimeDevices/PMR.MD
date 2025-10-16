@@ -473,6 +473,13 @@ window.sendOrder = async function() {
     return;
   }
   if (!name || !phone) return showToast("⚠️ Введите имя и телефон!", "error");
+ // ✅ Проверка корректного телефона Молдовы (+373 и 8 цифр)
+const phoneRegex = /^\+373(6|7|8)\d{7}$/;
+if (!phoneRegex.test(phone)) {
+  return showToast("📞 Введите корректный номер Молдовы в формате +373XXXXXXXX", "error");
+}
+
+
   if (!cart.length) return showToast("🛒 Корзина пуста!", "info");
 
   const itemsText = cart.map((p,i)=>`${i+1}. ${p.displayName || p.name} — ${fmt(p.price)} MDL`).join("\n");
@@ -766,22 +773,51 @@ document.addEventListener("DOMContentLoaded", () => {
   // сразу отрисуем отзывы, если страница открыта
   renderReviews();
 });
-// === 🔑 Восстановление пароля ===
-import { sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
-window.resetPassword = async function() {
-  const email = document.getElementById("loginEmail").value.trim();
-  if (!email) return showMessage("⚠️ Введите email, чтобы восстановить пароль", "error");
+// === Анимированный фон с цветными каплями ===
+const canvas = document.getElementById("bubbles");
+const ctx = canvas.getContext("2d");
+let drops = [];
 
-  try {
-    await sendPasswordResetEmail(auth, email);
-    showMessage("📧 Письмо для восстановления отправлено! Проверьте почту.", "success");
-  } catch (err) {
-    if (err.code === "auth/user-not-found")
-      showMessage("🚫 Пользователь с таким email не найден.", "error");
-    else if (err.code === "auth/invalid-email")
-      showMessage("⚠️ Некорректный email.", "error");
-    else
-      showMessage("Ошибка: " + err.message, "error");
-  }
-};
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+// создаём капли
+for (let i = 0; i < 25; i++) {
+  drops.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 200 + 80,
+    dx: (Math.random() - 0.5) * 0.4,
+    dy: (Math.random() - 0.5) * 0.4,
+    color: `hsl(${Math.random() * 360}, 80%, 60%)`
+  });
+}
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drops.forEach(d => {
+    ctx.beginPath();
+    const gradient = ctx.createRadialGradient(d.x, d.y, d.r * 0.2, d.x, d.y, d.r);
+    gradient.addColorStop(0, d.color);
+    gradient.addColorStop(1, "transparent");
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    d.x += d.dx;
+    d.y += d.dy;
+
+    // отражение от краёв
+    if (d.x - d.r < 0 || d.x + d.r > canvas.width) d.dx *= -1;
+    if (d.y - d.r < 0 || d.y + d.r > canvas.height) d.dy *= -1;
+  });
+
+  requestAnimationFrame(animate);
+}
+animate();
+
