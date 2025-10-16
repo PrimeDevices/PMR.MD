@@ -1,137 +1,116 @@
-// --- Настройки
+// ---- Firebase (modular v11) ----
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut, deleteUser, onAuthStateChanged, updateProfile
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
+// ВАЖНО: добавь github-домен в Firebase → Auth → Settings → Authorized domains
+const firebaseConfig = {
+  apiKey: "AIzaSyBXZ1tN-J6vGZxVJL4BLND1XeiwT2T3OWQ",
+  authDomain: "primedevices-5cdda.firebaseapp.com",
+  projectId: "primedevices-5cdda",
+  // Обычно тут appspot.com; но оставляю как у тебя в консоли:
+  storageBucket: "primedevices-5cdda.firebasestorage.app",
+  messagingSenderId: "563215884111",
+  appId: "1:563215884111:web:e534e41afa4d4adad5ef3a"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const storage = getStorage(app);
+
+// ---- Константы / состояние ----
 const TELEGRAM_TOKEN = "8060002374:AAGZ1B6fQutNTMMS22wOkgCH_defGVS8KVE";
 const TELEGRAM_CHAT_ID = "-4885330608";
 
-// --- Состояния
-let cart = [];
-let favorites = [];
-
-// === 💬 ОТЗЫВЫ ===
+let cart = JSON.parse(localStorage.getItem("cart") || "[]");
+let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+let orderHistory = JSON.parse(localStorage.getItem("orderHistory") || "[]");
 let reviews = JSON.parse(localStorage.getItem("reviews") || "[]");
-let tempReviewPhoto = null;
 
-// === 👤 АККАУНТЫ ===
-let users = JSON.parse(localStorage.getItem("users") || "[]");
-let currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
-
-// === Восстанавливаем вход при перезагрузке страницы ===
-document.addEventListener("DOMContentLoaded", () => {
-  const savedUser = localStorage.getItem("currentUser");
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-  }
-  renderAccount(); // обновляем интерфейс после восстановления
-});
-
+let tempReviewPhoto = null;      // base64 превью фото отзыва
+let tempAvatarFile = null;       // файл для аватара (ждём "Сохранить")
 
 let currentPage = 1;
 const perPage = 6;
 let sortMode = "default";
-
 let query = "";
-
 let activeCategory = "all";
 
-// --- Данные (по умолчанию)
-let products = [
-  {
-  "name": "AirPods Pro 2 (LUX)",
-  "category": "airpods",
-  "price": 600,
-  "img": "img/airpods-pro2-lux.png.png",
-  "specs": [
-    "Активное шумоподавление (ANC)",
-    "Прозрачный режим",
-    "Bluetooth 5.3",
-    "До 6 часов автономной работы",
-    "Беспроводной кейс"
-  ],
-  "memory": [
-    { "size": "Базовая комплектация", "price": 600 }
-  ],
-  "colors": [
-    { "name": "Белый", "color": "#ffffff", "img": "img/airpods-pro2-lux.png.png" },
-  ]
-},
-{
-  "name": "AirPods Pro 2 (Premium)",
-  "category": "airpods",
-  "price": 700,
-  "img": "img/airpods-pro2-lux.png.png",
-  "specs": [
-    "Активное шумоподавление (ANC)",
-    "Динамический звук",
-    "Кейс с динамиком и креплением",
-    "Поддержка Find My",
-    "До 6 часов прослушивания"
-  ],
-  "memory": [
-    { "size": "Базовая комплектация", "price": 700 }
-  ],
-  "colors": [
-    { "name": "Белый", "color": "#ffffff", "img": "img/airpods-pro2-lux.png.png" },
-  ]
-},
-{
-  "name": "AirPods 3",
-  "category": "airpods",
-  "price": 650,
-  "img": "img/airpods-3.png (2).png",
-  "specs": [
-    "Динамический драйвер Apple",
-    "Поддержка пространственного звука",
-    "До 6 часов прослушивания",
-    "Влагозащита IPX4",
-    "Беспроводной кейс MagSafe"
-  ],
-  "memory": [
-    { "size": "Базовая комплектация", "price": 650 }
-  ],
-  "colors": [
-    { "name": "Белый", "color": "#ffffff", "img": "img/airpods-3.png (2).png" }
-  ]
-}
-];
-
-
-
-// --- Утилиты
-const fmt = n => n.toLocaleString("ru-RU") ;
-
+const fmt = n => n.toLocaleString("ru-RU");
 const $ = id => document.getElementById(id);
 
-// --- Фильтрация/сортировка
+// ---- Товары (пример) ----
+const products = [
+  {
+    name: "AirPods Pro 2 (LUX)",
+    category: "airpods",
+    price: 600,
+    img: "img/airpods-pro2-lux.png.png",
+    specs: ["Активное шумоподавление (ANC)","Прозрачный режим","Bluetooth 5.3","До 6 часов автономной работы","Беспроводной кейс"],
+    memory: [{ size: "Базовая комплектация", price: 600 }],
+    colors: [{ name: "Белый", color: "#ffffff", img: "img/airpods-pro2-lux.png.png" }]
+  },
+  {
+    name: "AirPods Pro 2 (Premium)",
+    category: "airpods",
+    price: 700,
+    img: "img/airpods-pro2-lux.png.png",
+    specs: ["Активное шумоподавление (ANC)","Динамический звук","Кейс с динамиком и креплением","Поддержка Find My","До 6 часов прослушивания"],
+    memory: [{ size: "Базовая комплектация", price: 700 }],
+    colors: [{ name: "Белый", color: "#ffffff", img: "img/airpods-pro2-lux.png.png" }]
+  },
+  {
+    name: "AirPods 3",
+    category: "airpods",
+    price: 650,
+    img: "img/airpods-3.png (2).png",
+    specs: ["Динамический драйвер Apple","Поддержка пространственного звука","До 6 часов прослушивания","Влагозащита IPX4","Беспроводной кейс MagSafe"],
+    memory: [{ size: "Базовая комплектация", price: 650 }],
+    colors: [{ name: "Белый", color: "#ffffff", img: "img/airpods-3.png (2).png" }]
+  }
+];
+
+// ---- UI helpers ----
+function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = "toastOut 0.4s ease forwards";
+    setTimeout(() => toast.remove(), 400);
+  }, 3000);
+}
+
+function saveState() {
+  localStorage.setItem("cart", JSON.stringify(cart));
+  localStorage.setItem("favorites", JSON.stringify(favorites));
+  localStorage.setItem("orderHistory", JSON.stringify(orderHistory));
+}
+
+// ---- Каталог/фильтрация/рендер ----
 function getFiltered() {
   let list = products.slice();
-
-  // фильтр по категории
-  if (activeCategory !== "all") {
-    list = list.filter(p => p.category === activeCategory);
-  }
-
-  // фильтр по поиску
-  if (query) {
-    list = list.filter(p => p.name.toLowerCase().includes(query));
-  }
-
-  // сортировка
-  if (sortMode === "priceAsc") list.sort((a, b) => a.price - b.price);
-  if (sortMode === "priceDesc") list.sort((a, b) => b.price - a.price);
-  if (sortMode === "name") list.sort((a, b) => a.name.localeCompare(b.name, "ru"));
-
+  if (activeCategory !== "all") list = list.filter(p => p.category === activeCategory);
+  if (query) list = list.filter(p => p.name.toLowerCase().includes(query));
+  if (sortMode === "priceAsc") list.sort((a,b) => a.price - b.price);
+  if (sortMode === "priceDesc") list.sort((a,b) => b.price - a.price);
+  if (sortMode === "name") list.sort((a,b) => a.name.localeCompare(b.name, "ru"));
   return list;
 }
 
-// --- Рендер товаров
 function render() {
   const list = $("productList");
-
   list.classList.add("page-exit");
   setTimeout(() => {
     list.classList.remove("page-exit");
     list.innerHTML = "";
-
     const items = getFiltered();
     const totalPages = Math.max(1, Math.ceil(items.length / perPage));
     if (currentPage > totalPages) currentPage = totalPages;
@@ -142,18 +121,17 @@ function render() {
     pageItems.forEach(p => {
       const idx = products.indexOf(p);
       const card = document.createElement("div");
-      card.className = "card";
       const favActive = favorites.find(f => f.name === p.name) ? "active" : "";
-card.innerHTML = `
-  <img src="${p.img}" alt="${p.name}" onclick="openProduct(${idx})">
-  <h3>${p.name}</h3>
-  <p class="price">${fmt(p.price)} MDL</p>
-  <div style="display:flex;justify-content:center;gap:10px;">
-    <button class="btn btn-primary" onclick="addToCart(${idx})">🧺 В корзину</button>
-    <button class="btn-fav ${favActive}" onclick="addToFavorites(${idx})">⭐</button>
-  </div>
-`;
-
+      card.className = "card";
+      card.innerHTML = `
+        <img src="${p.img}" alt="${p.name}" onclick="openProduct(${idx})">
+        <h3>${p.name}</h3>
+        <p class="price">${fmt(p.price)} MDL</p>
+        <div style="display:flex;justify-content:center;gap:10px;">
+          <button class="btn btn-primary" onclick="addToCart(${idx})">🧺 В корзину</button>
+          <button class="btn-fav ${favActive}" onclick="addToFavorites(${idx})">⭐</button>
+        </div>
+      `;
       list.appendChild(card);
     });
 
@@ -168,73 +146,10 @@ card.innerHTML = `
   }, 200);
 }
 
-// === Избранное ===
-function toggleFavorites() {
-  const overlay = document.getElementById("favOverlay");
-  overlay.style.display = overlay.style.display === "flex" ? "none" : "flex";
-  renderFavorites();
-}
-
-function addToFavorites(i) {
-  const p = products[i];
-  const existing = favorites.find(f => f.name === p.name);
-
-  if (!existing) {
-    favorites.push(p);
-    showToast("💚 Товар добавлен в избранное!", "success");
-  } else {
-    favorites = favorites.filter(f => f.name !== p.name);
-    showToast("💔 Удалён из избранного", "info");
-  }
-
-  document.getElementById("favCount").textContent = favorites.length;
-  render(); // 🔥 обновляем карточки, чтобы цвет кнопки поменялся
-  saveState();
-}
-
-
-function renderFavorites() {
-  const box = document.getElementById("favItems");
-  box.innerHTML = "";
-
-  if (!favorites.length) {
-    box.innerHTML = "<p>⭐ Пока нет избранных товаров.</p>";
-    return;
-  }
-
-  favorites.forEach((p, i) => {
-    const productIndex = products.findIndex(item => item.name === p.name);
-    const row = document.createElement("div");
-    row.className = "cart-item";
-
-    row.innerHTML = `
-      <img src="${p.img}" alt="${p.name}" onclick="openProduct(${productIndex})" style="cursor:pointer">
-      <div style="flex:1;cursor:pointer" onclick="openProduct(${productIndex})">
-        <div style="font-weight:600">${p.name}</div>
-        <div>${fmt(p.price)} MDL</div>
-      </div>
-      <button class="btn btn-danger" onclick="removeFavorite(${i})">✖</button>
-    `;
-
-    box.appendChild(row);
-  });
-}
-
-
-function removeFavorite(i) {
-  favorites.splice(i, 1);
-  document.getElementById("favCount").textContent = favorites.length;
-  renderFavorites();
-  render();
-  saveState();
-}
-
-
-// --- Пагинация
 function renderPagination(total) {
   const box = $("pagination");
   box.innerHTML = "";
-  for (let i = 1; i <= total; i++) {
+  for (let i=1; i<=total; i++) {
     const b = document.createElement("button");
     b.className = "page-btn" + (i === currentPage ? " active" : "");
     b.textContent = i;
@@ -243,30 +158,25 @@ function renderPagination(total) {
   }
 }
 
-// --- Поиск
-function filterProducts() {
+// ---- Поиск/сортировка/категории ----
+window.filterProducts = function() {
   query = $("searchInput").value.trim().toLowerCase();
   currentPage = 1;
   render();
-}
+};
 
-// --- Сортировка
-(function initSort() {
+(function initSort(){
   const dd = $("sortDropdown");
   const btn = $("sortBtn");
   const menu = $("sortMenu");
-  btn.addEventListener("click", e => {
-    e.stopPropagation();
-    dd.classList.toggle("open");
-  });
+  btn.addEventListener("click", e => { e.stopPropagation(); dd.classList.toggle("open"); });
   menu.querySelectorAll("button").forEach(b => {
     b.addEventListener("click", () => {
       sortMode = b.dataset.sort;
       btn.textContent =
         sortMode === "priceAsc" ? "Цена ↑" :
         sortMode === "priceDesc" ? "Цена ↓" :
-        sortMode === "name" ? "По названию" :
-        "Сортировка ▾";
+        sortMode === "name" ? "По названию" : "Сортировка ▾";
       dd.classList.remove("open");
       render();
     });
@@ -274,44 +184,47 @@ function filterProducts() {
   document.addEventListener("click", () => dd.classList.remove("open"));
 })();
 
-// --- Корзина
-function toggleCart() {
+document.querySelectorAll(".cat-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeCategory = btn.dataset.cat;
+    currentPage = 1;
+    render();
+  });
+});
+
+// ---- Корзина / Избранное ----
+window.toggleCart = function() {
   const o = $("cartOverlay");
   o.style.display = o.style.display === "flex" ? "none" : "flex";
   renderCart();
-}
-
-function addToCart(i) {
-  const p = products[i];
-  cart.push({ ...p });
+};
+window.addToCart = function(i) {
+  cart.push({ ...products[i] });
   $("cartCount").textContent = cart.length;
   renderCart();
-
-  const cartBtn = document.getElementById("cartBtn");
-  cartBtn.classList.add("pulse");
-  setTimeout(() => cartBtn.classList.remove("pulse"), 400);
+  document.getElementById("cartBtn").classList.add("pulse");
+  setTimeout(() => document.getElementById("cartBtn").classList.remove("pulse"), 400);
   saveState();
-}
-
-function removeFromCart(i) {
-  cart.splice(i, 1);
+};
+window.removeFromCart = function(i) {
+  cart.splice(i,1);
   $("cartCount").textContent = cart.length;
   renderCart();
   saveState();
-}
-
-function clearCart() {
+};
+window.clearCart = function() {
   cart = [];
   $("cartCount").textContent = 0;
   renderCart();
-  saveState(); 
-}
-
+  saveState();
+};
 function renderCart() {
   const box = $("cartItems");
   box.innerHTML = "";
   let total = 0;
-  cart.forEach((p, i) => {
+  cart.forEach((p,i) => {
     total += p.price;
     const row = document.createElement("div");
     row.className = "cart-item";
@@ -328,13 +241,61 @@ function renderCart() {
   $("totalPrice").textContent = fmt(total);
 }
 
-// --- Модалка товара
-let modalState = { index: null, colorIdx: 0, memIdx: 0 };
-
-function openProduct(i) {
-  modalState = { index: i, colorIdx: 0, memIdx: 0 };
+window.toggleFavorites = function() {
+  const overlay = $("favOverlay");
+  overlay.style.display = overlay.style.display === "flex" ? "none" : "flex";
+  renderFavorites();
+};
+window.addToFavorites = function(i) {
   const p = products[i];
+  const existing = favorites.find(f => f.name === p.name);
+  if (!existing) {
+    favorites.push(p);
+    showToast("💚 Товар добавлен в избранное!", "success");
+  } else {
+    favorites = favorites.filter(f => f.name !== p.name);
+    showToast("💔 Удалён из избранного", "info");
+  }
+  $("favCount").textContent = favorites.length;
+  render();
+  saveState();
+};
+function renderFavorites() {
+  const box = $("favItems");
+  box.innerHTML = "";
+  if (!favorites.length) {
+    box.innerHTML = "<p>⭐ Пока нет избранных товаров.</p>";
+    return;
+  }
+  favorites.forEach((p,i) => {
+    const productIndex = products.findIndex(item => item.name === p.name);
+    const row = document.createElement("div");
+    row.className = "cart-item";
+    row.innerHTML = `
+      <img src="${p.img}" alt="${p.name}" onclick="openProduct(${productIndex})" style="cursor:pointer">
+      <div style="flex:1;cursor:pointer" onclick="openProduct(${productIndex})">
+        <div style="font-weight:600">${p.name}</div>
+        <div>${fmt(p.price)} MDL</div>
+      </div>
+      <button class="btn btn-danger" onclick="removeFavorite(${i})">✖</button>
+    `;
+    box.appendChild(row);
+  });
+}
+window.removeFavorite = function(i){
+  favorites.splice(i,1);
+  $("favCount").textContent = favorites.length;
+  renderFavorites();
+  render();
+  saveState();
+};
 
+// ---- Карточка товара ----
+let modalState = { index:null, colorIdx:0, memIdx:0 };
+
+window.openProduct = function(i){
+  modalState = { index:i, colorIdx:0, memIdx:0 };
+  const p = products[i];
   $("modalTitle").textContent = p.name;
   $("modalSpecs").innerHTML = p.specs.map(s => `<li>• ${s}</li>`).join("");
   $("modalPrice").textContent = fmt(p.price) + " MDL";
@@ -343,9 +304,9 @@ function openProduct(i) {
   const colorBox = $("colorOptions");
   colorBox.innerHTML = "";
   if (p.colors?.length) {
-    p.colors.forEach((c, ci) => {
+    p.colors.forEach((c,ci)=>{
       const chip = document.createElement("div");
-      chip.className = "color-chip" + (ci === 0 ? " active" : "");
+      chip.className = "color-chip" + (ci===0 ? " active" : "");
       chip.style.backgroundColor = c.color;
       chip.title = c.name;
       chip.onclick = () => {
@@ -360,10 +321,10 @@ function openProduct(i) {
 
   const memBox = $("memoryOptions");
   memBox.innerHTML = "";
-  const memory = p.memory?.length ? p.memory : [{ size: "Базовый", price: p.price }];
-  memory.forEach((m, mi) => {
+  const memory = p.memory?.length ? p.memory : [{ size:"Базовый", price:p.price }];
+  memory.forEach((m,mi)=>{
     const b = document.createElement("button");
-    b.className = "mem-btn" + (mi === 0 ? " active" : "");
+    b.className = "mem-btn" + (mi===0 ? " active" : "");
     b.textContent = m.size;
     b.onclick = () => {
       memBox.querySelectorAll(".mem-btn").forEach(x => x.classList.remove("active"));
@@ -378,33 +339,27 @@ function openProduct(i) {
     const c = p.colors?.[modalState.colorIdx];
     const m = memory[modalState.memIdx];
     const price = m.price ?? p.price;
-    const name = `${p.name}${c ? ` (${c.name}` : ""}${m ? `${c ? ", " : " ("}${m.size}` : ""}${(c || m) ? ")" : ""}`;
-    cart.push({ ...p, price, displayName: name, img: c?.img || p.img });
+    const name = `${p.name}${c ? ` (${c.name}` : ""}${m ? `${c ? ", " : " ("}${m.size}` : ""}${(c||m) ? ")" : ""}`;
+    cart.push({ ...p, price, displayName:name, img:c?.img || p.img });
     $("cartCount").textContent = cart.length;
     renderCart();
     closeModal();
     showToast("✅ Товар добавлен в корзину!", "success");
+    saveState();
   };
-const favBtn = document.getElementById("modalAddToFav");
-const isFav = favorites.find(f => f.name === p.name);
-if (isFav) {
-  favBtn.classList.add("active");
-  favBtn.textContent = "⭐ В избранном";
-} else {
-  favBtn.classList.remove("active");
-  favBtn.textContent = "⭐ В избранное";
-}
+
+  const favBtn = $("modalAddToFav");
+  const isFav = favorites.find(f => f.name === p.name);
+  if (isFav) { favBtn.classList.add("active"); favBtn.textContent = "⭐ В избранном"; }
+  else       { favBtn.classList.remove("active"); favBtn.textContent = "⭐ В избранное"; }
 
   $("productModal").style.display = "flex";
-}
-
-
-function toggleModalFavorite() {
+};
+window.toggleModalFavorite = function(){
   const i = modalState.index;
   const p = products[i];
-  const favBtn = document.getElementById("modalAddToFav");
+  const favBtn = $("modalAddToFav");
   const existing = favorites.find(f => f.name === p.name);
-
   if (!existing) {
     favorites.push(p);
     favBtn.classList.add("active");
@@ -416,68 +371,29 @@ function toggleModalFavorite() {
     favBtn.textContent = "⭐ В избранное";
     showToast("💔 Удалено из избранного", "info");
   }
-
-  document.getElementById("favCount").textContent = favorites.length;
+  $("favCount").textContent = favorites.length;
   render();
-}
+  saveState();
+};
+window.closeModal = function(){ $("productModal").style.display = "none"; };
+window.placeOrder = function(){ if (!cart.length) return showToast("🛒 Корзина пуста!", "info"); $("orderOverlay").style.display = "flex"; };
+window.closeOrder = function(){ $("orderOverlay").style.display = "none"; };
+window.overlayClick = function(e){ if (e.target.classList.contains("overlay")) e.target.style.display = "none"; };
 
-
-function closeModal() { $("productModal").style.display = "none"; }
-
-// --- Оформление заказа
-function placeOrder() {
-  if (!cart.length) return showToast("🛒 Корзина пуста!", "info");
-  $("orderOverlay").style.display = "flex";
-}
-function closeOrder() { $("orderOverlay").style.display = "none"; }
-function overlayClick(e) { if (e.target.classList.contains("overlay")) e.target.style.display = "none"; }
-
-// --- Уведомления
-function showToast(message, type = "info") {
-  const container = document.getElementById("toastContainer");
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.style.animation = "toastOut 0.4s ease forwards";
-    setTimeout(() => toast.remove(), 400);
-  }, 3000);
-}
-
-// === Категории ===
-document.querySelectorAll(".cat-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    activeCategory = btn.dataset.cat;
-    currentPage = 1;
-    render();
-  });
-});
-
-// === Домой ===
-function goHome() {
+// ---- Домой / страницы / меню ----
+window.goHome = function(){
   document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
-  query = "";
-  sortMode = "default";
-  activeCategory = "all"; 
-  $("searchInput").value = "";
-  currentPage = 1;
-  render();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  showToast("🏠 Возврат на главную страницу", "info");
-}
-
-// === Переключение страниц (исправлено) ===
-function showPage(page) {
+  query = ""; sortMode = "default"; activeCategory = "all";
+  $("searchInput").value = ""; currentPage = 1;
+  render(); window.scrollTo({top:0, behavior:"smooth"});
+  showToast("🏠 Возврат на главную страницу","info");
+};
+window.showPage = function(page){
   const main = document.querySelector("main");
   const catalog = document.querySelector(".catalog");
   const headerBottom = document.querySelector(".header-bottom");
   const searchWrap = document.querySelector(".search-wrap");
 
-  // Скрываем все страницы
   document.querySelectorAll(".page").forEach(p => p.style.display = "none");
 
   if (page === "shop") {
@@ -492,104 +408,25 @@ function showPage(page) {
     if (searchWrap) searchWrap.style.display = "none";
   }
 
-  // 🔹 Показываем нужную страницу
-  const currentPage = document.getElementById(`page-${page}`);
-  if (currentPage) currentPage.style.display = "block";
+  const target = document.getElementById(`page-${page}`);
+  if (target) target.style.display = "block";
 
-  // 🔹 Специальные случаи
   if (page === "orders") renderOrders();
-  if (page === "profile") renderProfile();
+  if (page === "reviews") renderReviews();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
-}
+};
+window.toggleMenu = function(){
+  document.querySelector('.top-nav').classList.toggle('active');
+};
 
-// === Бургер-меню ===
-function toggleMenu() {
-  const nav = document.querySelector('.top-nav');
-  nav.classList.toggle('active');
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  // 🔹 Загружаем сохранённые данные
-  const savedCart = localStorage.getItem("cart");
-  const savedFav = localStorage.getItem("favorites");
-
-  if (savedCart) cart = JSON.parse(savedCart);
-  if (savedFav) favorites = JSON.parse(savedFav);
-
-  $("cartCount").textContent = cart.length;
-  $("favCount").textContent = favorites.length;
-  render();
-  showPage("shop");
-
-  const nav = document.querySelector('.top-nav');
-  const burger = document.querySelector('.burger');
-
-  document.querySelectorAll('.top-nav .nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => nav.classList.remove('active'));
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!nav.contains(e.target) && !burger.contains(e.target)) {
-      nav.classList.remove('active');
-    }
-  });
-
-  // Центрируем сортировку и корзину
-  const headerBottom = document.querySelector(".header-bottom");
-  if (headerBottom) {
-    headerBottom.style.justifyContent = "center";
-    headerBottom.style.gap = "12px";
-  }
-});
-
-// === 📜 История заказов ===
-let orderHistory = JSON.parse(localStorage.getItem("orderHistory") || "[]");
-
-function saveOrderHistory() {
-  localStorage.setItem("orderHistory", JSON.stringify(orderHistory));
-}
-
-function renderOrders() {
-  const box = document.getElementById("ordersList");
-  box.innerHTML = "";
-
-  if (!orderHistory.length) {
-    box.innerHTML = "<p>Пока нет оформленных заказов 🛍</p>";
-    return;
-  }
-
-  orderHistory
-    .slice()
-    .reverse()
-    .forEach((order, i) => {
-      const div = document.createElement("div");
-      div.className = "order-card";
-      const items = order.items.map(x => `• ${x}`).join("<br>");
-      div.innerHTML = `
-        <h3>Заказ №${i + 1}</h3>
-        <p><b>Дата:</b> ${order.date}</p>
-        <p><b>Имя:</b> ${order.name}</p>
-        <p><b>Телефон:</b> ${order.phone}</p>
-        <p><b>Товары:</b><br>${items}</p>
-        <p><b>Сумма:</b> ${order.total} MDL</p>
-      `;
-      box.appendChild(div);
-    });
-}
-
-// === 🌗 Переключение темы (ночная ↔ дневная) ===
+// ---- Тема ----
 document.addEventListener("DOMContentLoaded", () => {
-  const themeBtn = document.getElementById("themeToggle");
+  const themeBtn = $("themeToggle");
   const root = document.documentElement;
   const savedTheme = localStorage.getItem("theme");
-
-  if (savedTheme === "light") {
-    root.classList.add("light-theme");
-    themeBtn.textContent = "🌞";
-  } else {
-    themeBtn.textContent = "🌙";
-  }
+  if (savedTheme === "light") { root.classList.add("light-theme"); themeBtn.textContent = "🌞"; }
+  else themeBtn.textContent = "🌙";
 
   themeBtn.addEventListener("click", () => {
     root.classList.toggle("light-theme");
@@ -599,37 +436,48 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+// ---- История заказов ----
+function saveOrderHistory(){ localStorage.setItem("orderHistory", JSON.stringify(orderHistory)); }
+function renderOrders(){
+  const box = $("ordersList");
+  box.innerHTML = "";
+  if (!orderHistory.length) { box.innerHTML = "<p>Пока нет оформленных заказов 🛍</p>"; return; }
+  orderHistory.slice().reverse().forEach((order,i)=>{
+    const div = document.createElement("div");
+    div.className = "order-card";
+    const items = order.items.map(x => `• ${x}`).join("<br>");
+    div.innerHTML = `
+      <h3>Заказ №${i + 1}</h3>
+      <p><b>Дата:</b> ${order.date}</p>
+      <p><b>Имя:</b> ${order.name}</p>
+      <p><b>Телефон:</b> ${order.phone}</p>
+      <p><b>Товары:</b><br>${items}</p>
+      <p><b>Сумма:</b> ${order.total} MDL</p>
+    `;
+    box.appendChild(div);
+  });
+}
 
-// === 📦 Отправка заказа в Telegram ===
-async function sendOrder() {
+// ---- Оформление заказа (Telegram) ----
+window.sendOrder = async function() {
+  const user = auth.currentUser;
   const name = $("orderName").value.trim();
   const phone = $("orderPhone").value.trim();
   const comment = $("orderComment").value.trim();
 
-  if (!currentUser) {
+  if (!user) {
     $("cartOverlay").style.display = "none";
     $("orderOverlay").style.display = "none";
     showToast("🔒 Войдите в аккаунт, чтобы оформить заказ!", "error");
     showPage("account");
     return;
   }
+  if (!name || !phone) return showToast("⚠️ Введите имя и телефон!", "error");
+  if (!cart.length) return showToast("🛒 Корзина пуста!", "info");
 
-  if (!name || !phone) {
-    showToast("⚠️ Введите имя и телефон!", "error");
-    return;
-  }
-
-  if (!cart.length) {
-    showToast("🛒 Корзина пуста!", "info");
-    return;
-  }
-
-  const itemsText = cart
-    .map((p, i) => `${i + 1}. ${p.displayName || p.name} — ${fmt(p.price)} MDL`)
-    .join("\n");
-
+  const itemsText = cart.map((p,i)=>`${i+1}. ${p.displayName || p.name} — ${fmt(p.price)} MDL`).join("\n");
   const text = `
-🧾 <b>Новый заказ PrimeDevices.pmr</b>\n
+🧾 <b>Новый заказ PrimeDevices.pmr</b>
 👤 Имя: ${name}
 📞 Телефон: ${phone}
 💬 Комментарий: ${comment || "—"}
@@ -640,25 +488,16 @@ ${itemsText}
 `;
 
   try {
-    const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-    const res = await fetch(telegramUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
-        text,
-        parse_mode: "HTML"
-      })
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode:"HTML" })
     });
-
     const data = await res.json();
-
     if (res.ok && data.ok) {
       const orderData = {
         date: new Date().toLocaleString(),
-        name,
-        phone,
-        comment,
+        name, phone, comment,
         items: cart.map(p => p.displayName || p.name),
         total: $("totalPrice").textContent
       };
@@ -667,51 +506,39 @@ ${itemsText}
 
       showToast("✅ Заказ успешно отправлен!", "success");
       $("orderOverlay").style.display = "none";
-      cart = [];
-      $("cartCount").textContent = 0;
-      renderCart();
-      saveState();
+      cart = []; $("cartCount").textContent = 0;
+      renderCart(); saveState();
     } else {
       console.error("Ошибка Telegram:", data);
       showToast("⚠️ Ошибка при отправке заказа!", "error");
     }
   } catch (err) {
     console.error("Ошибка сети:", err);
-    
+    showToast("⚠️ Ошибка сети при отправке!", "error");
   }
-}
+};
 
-
-
-
-// 📸 Предпросмотр фото
-function previewReviewPhoto(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
+// ---- Отзывы ----
+window.previewReviewPhoto = function(e){
+  const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     tempReviewPhoto = ev.target.result;
     $("reviewPreview").innerHTML = `
-      <img src="${tempReviewPhoto}" alt="Фото отзыва" 
+      <img src="${tempReviewPhoto}" alt="Фото отзыва"
            style="max-width:150px; border-radius:10px; margin-top:8px; border:2px solid var(--accent);">
     `;
   };
   reader.readAsDataURL(file);
-}
+};
 
-// 📝 Добавление нового отзыва
-function addReview() {
+window.addReview = function(){
+  const user = auth.currentUser;
   const name = $("reviewName").value.trim();
   const text = $("reviewText").value.trim();
 
-  if (!name || !text) {
-    showToast("⚠️ Заполните имя и текст!", "error");
-    return;
-  }
-
-  // проверка на вход
-  if (!currentUser) {
+  if (!name || !text) return showToast("⚠️ Заполните имя и текст!", "error");
+  if (!user) {
     showToast("🔒 Войдите в аккаунт, чтобы оставить отзыв!", "error");
     showPage("account");
     return;
@@ -720,12 +547,8 @@ function addReview() {
   const newReview = {
     name,
     text,
-    email: currentUser.email,
-    date: new Date().toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric"
-    }),
+    email: user.email,
+    date: new Date().toLocaleDateString("ru-RU", { day:"2-digit", month:"long", year:"numeric" }),
     photo: tempReviewPhoto || null
   };
 
@@ -740,175 +563,206 @@ function addReview() {
 
   showToast("✅ Спасибо за отзыв!", "success");
   renderReviews();
-}
+};
 
-
-// 📋 Отображение отзывов
-function renderReviews() {
+function renderReviews(){
   const box = $("reviewsList");
   box.innerHTML = "";
-
-  if (!reviews.length) {
-    box.innerHTML = "<p>Пока нет отзывов. Будьте первым, кто поделится впечатлением! 🌟</p>";
-    return;
-  }
-
-  reviews.forEach((r, i) => {
+  if (!reviews.length) { box.innerHTML = "<p>Пока нет отзывов. Будьте первым, кто поделится впечатлением! 🌟</p>"; return; }
+  const user = auth.currentUser;
+  reviews.forEach((r,i) => {
     const card = document.createElement("div");
     card.className = "review-card";
-
-    const canDelete = currentUser && currentUser.email === r.email;
-    const deleteBtn = canDelete
-      ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="deleteReview(${i})">🗑 Удалить</button>`
-      : "";
-
+    const canDelete = user && user.email === r.email;
+    const del = canDelete ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="deleteReview(${i})">🗑 Удалить</button>` : "";
     card.innerHTML = `
       <p><b>${r.name}</b> <span style="opacity:0.7;">(${r.date})</span></p>
       <p>${r.text}</p>
       ${r.photo ? `<img src="${r.photo}" alt="Фото отзыва"
-        style="max-width:150px; border-radius:10px; margin-top:8px; border:2px solid var(--accent);">` : ""}
-      ${deleteBtn}
+         style="max-width:150px; border-radius:10px; margin-top:8px; border:2px solid var(--accent);">` : ""}
+      ${del}
     `;
-    box.prepend(card); // вставляем сверху, чтобы свежие были первыми
+    box.prepend(card);
   });
 }
-
-function deleteReview(index) {
-  if (!currentUser) return showToast("⚠️ Вы не вошли в аккаунт!", "error");
-
+window.deleteReview = function(index){
+  const user = auth.currentUser;
+  if (!user) return showToast("⚠️ Вы не вошли в аккаунт!", "error");
   const review = reviews[index];
-  if (review.email !== currentUser.email) {
-    showToast("🚫 Можно удалить только свой отзыв!", "error");
-    return;
-  }
-
+  if (review.email !== user.email) return showToast("🚫 Можно удалить только свой отзыв!", "error");
   if (!confirm("Удалить этот отзыв?")) return;
-
-  reviews.splice(index, 1);
+  reviews.splice(index,1);
   localStorage.setItem("reviews", JSON.stringify(reviews));
   showToast("🗑 Отзыв удалён!", "success");
   renderReviews();
-}
+};
 
-// ⏳ Загружаем отзывы при открытии страницы
-document.addEventListener("DOMContentLoaded", renderReviews);
-
-
-// === 🔐 Авторизация / Регистрация ===
-function toggleAuth(mode) {
-  $("loginBox").style.display = mode === "login" ? "block" : "none";
+// ---- Аккаунт (Firebase Auth) ----
+window.toggleAuth = function(mode){
+  $("loginBox").style.display = mode === "register" ? "none" : "block";
   $("registerBox").style.display = mode === "register" ? "block" : "none";
-}
+};
 
+window.registerUser = async function(){
+  const email = $("regEmail").value.trim();
+  const pass = $("regPass").value.trim();
+  const name = $("regName").value.trim();
+  if (!email || !pass) return showToast("⚠️ Укажите email и пароль", "error");
 
-
-
-// === 🧍 АВАТАР + РЕДАКТИРОВАНИЕ ПРОФИЛЯ ===
-
-function loadAvatar() {
-  const avatar = $("userAvatar");
-  if (!currentUser || !avatar) return;
-
-  const avatarKey = `avatar_${currentUser.email}`;
-  const saved = localStorage.getItem(avatarKey);
-
-  if (saved) {
-    avatar.src = saved;
-  } else if (currentUser.name) {
-    const letter = currentUser.name.charAt(0).toUpperCase();
-    avatar.src = `https://dummyimage.com/200x200/1c79ff/ffffff&text=${letter}`;
-  } else {
-    avatar.src = `https://dummyimage.com/200x200/1c79ff/ffffff&text=?`;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    if (name) {
+      await updateProfile(cred.user, { displayName: name });
+    }
+    showToast("✅ Аккаунт создан! Теперь вы вошли.", "success");
+  } catch (err) {
+    alert("Ошибка: " + err.message);
   }
-}
+};
 
+window.loginUser = async function(){
+  const email = $("loginEmail").value.trim();
+  const pass = $("loginPass").value.trim();
+  if (!email || !pass) return showToast("⚠️ Укажите email и пароль", "error");
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    showToast("✅ Вход выполнен!", "success");
+  } catch (err) {
+    alert("Ошибка: " + err.message);
+  }
+};
 
-let tempAvatar = null; // временное фото
+window.logoutUser = async function(){
+  await signOut(auth);
+  showToast("🚪 Вы вышли из аккаунта", "info");
+};
 
-function changeAvatar(e) {
+window.deleteAccount = async function(){
+  if (!confirm("Удалить аккаунт навсегда?")) return;
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await deleteUser(user);
+    showToast("Аккаунт удалён", "success");
+  } catch (e) {
+    alert("Ошибка удаления: " + e.message);
+  }
+};
+
+// Редактирование профиля
+window.toggleEdit = function(){
+  const box = $("editProfileBox");
+  box.style.display = (box.style.display === "none" || !box.style.display) ? "block" : "none";
+};
+window.cancelEdit = function(){
+  $("editProfileBox").style.display = "none";
+  tempAvatarFile = null;
+};
+window.changeAvatar = function(e){
   const file = e.target.files[0];
   if (!file) return;
-
+  tempAvatarFile = file; // только сохраняем во временную переменную
   const reader = new FileReader();
-  reader.onload = ev => {
-    tempAvatar = ev.target.result; // сохраняем временно
-    $("userAvatar").src = tempAvatar; // показываем пользователю
-    showToast("📷 Фото выбрано, нажмите «Сохранить» для подтверждения", "info");
-  };
+  reader.onload = ev => { $("userAvatar").src = ev.target.result; };
   reader.readAsDataURL(file);
-}
+  showToast("📷 Фото выбрано. Нажмите «Сохранить».", "info");
+};
 
+window.saveProfile = async function(){
+  const user = auth.currentUser;
+  if (!user) return showToast("⚠️ Вы не вошли!", "error");
 
-
-
-// показать / скрыть форму редактирования
-function toggleEdit() {
-  const box = $("editProfileBox");
-  box.style.display = box.style.display === "none" ? "block" : "none";
-}
-
-// отмена
-function cancelEdit() {
-  $("editProfileBox").style.display = "none";
-}
-
-function saveProfile() {
   const newName = $("editName").value.trim();
+  let changed = false;
 
-  if (!newName && !tempAvatar) {
-    showToast("⚠️ Ничего не изменено!", "error");
-    return;
-  }
-
-  let users = JSON.parse(localStorage.getItem("users") || "[]");
-  users = users.map(u => {
-    if (u.email === currentUser.email) {
-      return { ...u, name: newName || u.name };
+  try {
+    // 1) Если выбран новый аватар, грузим в Firebase Storage
+    if (tempAvatarFile) {
+      const ext = (tempAvatarFile.name.split(".").pop() || "jpg").toLowerCase();
+      const ref = storageRef(storage, `avatars/${user.uid}.${ext}`);
+      await uploadBytes(ref, tempAvatarFile);
+      const url = await getDownloadURL(ref);
+      await updateProfile(user, { photoURL: url });
+      tempAvatarFile = null;
+      changed = true;
     }
-    return u;
+
+    // 2) Если указано новое имя — сохраняем
+    if (newName) {
+      await updateProfile(user, { displayName: newName });
+      changed = true;
+    }
+
+    if (changed) {
+      showToast("✅ Изменения сохранены!");
+      $("editProfileBox").style.display = "none";
+      refreshUserPanel(); // обновить UI
+    } else {
+      showToast("⚠️ Нечего сохранять", "error");
+    }
+  } catch (e) {
+    alert("Ошибка сохранения профиля: " + e.message);
+  }
+};
+
+// Обновление UI панели пользователя
+function refreshUserPanel(){
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const name = user.displayName || (user.email ? user.email.split("@")[0] : "Пользователь");
+  $("userName").textContent = name;
+
+  if (user.photoURL) {
+    $("userAvatar").src = user.photoURL;
+  } else {
+    const letter = name.charAt(0).toUpperCase();
+    $("userAvatar").src = `https://dummyimage.com/200x200/1c79ff/ffffff&text=${letter}`;
+  }
+}
+
+// Отслеживание состояния входа
+onAuthStateChanged(auth, (user) => {
+  const loginBox = $("loginBox");
+  const registerBox = $("registerBox");
+  const userPanel = $("userPanel");
+
+  if (user) {
+    loginBox.style.display = "none";
+    registerBox.style.display = "none";
+    userPanel.style.display = "block";
+    refreshUserPanel();
+  } else {
+    loginBox.style.display = "block";
+    registerBox.style.display = "none";
+    userPanel.style.display = "none";
+  }
+  // при входе/выходе обновим список отзывов, чтобы права удаления были корректные
+  if (document.getElementById("page-reviews").style.display === "block") {
+    renderReviews();
+  }
+});
+
+// ---- DOM ready ----
+document.addEventListener("DOMContentLoaded", () => {
+  $("cartCount").textContent = cart.length;
+  $("favCount").textContent = favorites.length;
+
+  render();
+  showPage("shop");
+
+  // закрытие бургера по клику вне
+  const nav = document.querySelector('.top-nav');
+  const burger = document.querySelector('.burger');
+  document.querySelectorAll('.top-nav .nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => nav.classList.remove('active'));
   });
-  localStorage.setItem("users", JSON.stringify(users));
+  document.addEventListener('click', (e) => {
+    if (!nav.contains(e.target) && !burger.contains(e.target)) {
+      nav.classList.remove('active');
+    }
+  });
 
-  if (newName) {
-    currentUser.name = newName;
-    $("userName").textContent = newName;
-  }
-
-  // ✅ Сохраняем фото только при нажатии "Сохранить"
-  if (tempAvatar) {
-    const avatarKey = `avatar_${currentUser.email}`;
-    localStorage.setItem(avatarKey, tempAvatar);
-    $("userAvatar").src = tempAvatar;
-    tempAvatar = null; // очищаем временное фото
-  }
-
-  localStorage.setItem("currentUser", JSON.stringify(currentUser));
-  $("editProfileBox").style.display = "none";
-  showToast("✅ Изменения сохранены!");
-}
-
-
-
-
-// при загрузке страницы
-document.addEventListener("DOMContentLoaded", loadAvatar);
-
-// === 🔐 Назначение администратора (только для главного админа) ===
-function makeAdmin(targetEmail) {
-  if (!isMainAdmin()) {
-    showToast("🚫 Только главный администратор может назначать админов!", "error");
-    return;
-  }
-
-  let users = JSON.parse(localStorage.getItem("users") || "[]");
-  const user = users.find(u => u.email === targetEmail);
-
-  if (!user) {
-    showToast("❌ Пользователь с таким email не найден!", "error");
-    return;
-  }
-
-  user.role = "admin";
-  localStorage.setItem("users", JSON.stringify(users));
-  showToast(`✅ ${user.name} теперь администратор!`);
-}
+  // сразу отрисуем отзывы, если страница открыта
+  renderReviews();
+});
