@@ -295,5 +295,110 @@
 </section>
 
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { 
+    getAuth, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    deleteUser, 
+    onAuthStateChanged,
+    updateProfile
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXZtIN-J6vGZxVJL4BLND1XeiwT2T3OWQ",
+    authDomain: "primedevices-5cdda.firebaseapp.com",
+    projectId: "primedevices-5cdda",
+    storageBucket: "primedevices-5cdda.appspot.com",
+    messagingSenderId: "563215884111",
+    appId: "1:563215884111:web:e534e41afad4adad5ef3a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // === регистрация ===
+  async function registerUser() {
+    const email = document.getElementById("regEmail").value;
+    const pass = document.getElementById("regPass").value;
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+      alert("✅ Аккаунт создан! Теперь войдите.");
+      document.getElementById("registerBox").style.display = "none";
+      document.getElementById("loginBox").style.display = "block";
+    } catch (err) {
+      alert("Ошибка: " + err.message);
+    }
+  }
+
+  // === вход ===
+  async function loginUser() {
+    const email = document.getElementById("loginEmail").value;
+    const pass = document.getElementById("loginPass").value;
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      alert("✅ Вход выполнен!");
+    } catch (err) {
+      alert("Ошибка: " + err.message);
+    }
+  }
+
+  // === выход ===
+  async function logoutUser() {
+    await signOut(auth);
+    alert("🚪 Вы вышли из аккаунта");
+    location.reload();
+  }
+
+  // === удаление аккаунта ===
+  async function deleteAccount() {
+    if (confirm("Удалить аккаунт навсегда?")) {
+      const user = auth.currentUser;
+      await deleteUser(user);
+      alert("Аккаунт удалён");
+      location.reload();
+    }
+  }
+
+  // === отслеживание входа/выхода ===
+  onAuthStateChanged(auth, (user) => {
+    const loginBox = document.getElementById("loginBox");
+    const registerBox = document.getElementById("registerBox");
+    const userPanel = document.getElementById("userPanel");
+
+    if (user) {
+      // вошли
+      loginBox.style.display = "none";
+      registerBox.style.display = "none";
+      userPanel.style.display = "block";
+      document.getElementById("userName").innerText = user.displayName || user.email.split("@")[0];
+    } else {
+      // вышли
+      loginBox.style.display = "block";
+      registerBox.style.display = "none";
+      userPanel.style.display = "none";
+    }
+  });
+
+  // === переключение между входом и регистрацией ===
+  function toggleAuth(mode) {
+    if (mode === "register") {
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("registerBox").style.display = "block";
+    } else {
+      document.getElementById("loginBox").style.display = "block";
+      document.getElementById("registerBox").style.display = "none";
+    }
+  }
+  window.registerUser = registerUser;
+  window.loginUser = loginUser;
+  window.logoutUser = logoutUser;
+  window.deleteAccount = deleteAccount;
+  window.toggleAuth = toggleAuth;
+</script>
+
+
 </body>
 </html>
