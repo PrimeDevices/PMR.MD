@@ -7,6 +7,10 @@ const TELEGRAM_CHAT_ID = "-4885330608";
 let cart = [];
 let favorites = [];
 
+// === 💬 ОТЗЫВЫ ===
+let reviews = JSON.parse(localStorage.getItem("reviews") || "[]");
+let tempReviewPhoto = null;
+
 // === 👤 АККАУНТЫ ===
 let users = JSON.parse(localStorage.getItem("users") || "[]");
 let currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
