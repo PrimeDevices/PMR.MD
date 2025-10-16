@@ -766,3 +766,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // сразу отрисуем отзывы, если страница открыта
   renderReviews();
 });
+// === 🔑 Восстановление пароля ===
+import { sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+window.resetPassword = async function() {
+  const email = document.getElementById("loginEmail").value.trim();
+  if (!email) return showMessage("⚠️ Введите email, чтобы восстановить пароль", "error");
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showMessage("📧 Письмо для восстановления отправлено! Проверьте почту.", "success");
+  } catch (err) {
+    if (err.code === "auth/user-not-found")
+      showMessage("🚫 Пользователь с таким email не найден.", "error");
+    else if (err.code === "auth/invalid-email")
+      showMessage("⚠️ Некорректный email.", "error");
+    else
+      showMessage("Ошибка: " + err.message, "error");
+  }
+};
