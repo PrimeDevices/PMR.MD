@@ -6,7 +6,9 @@
   <title>PrimeDevices</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
+
 <body>
+  <canvas id="bubbles"></canvas>
   <div class="particles"></div>
 
   <header class="header">
@@ -101,7 +103,7 @@
     <div class="panel order-panel" onclick="event.stopPropagation()">
       <h3>Оформление заказа</h3>
       <input id="orderName" placeholder="Ваше имя"/>
-      <input id="orderPhone" placeholder="Телефон" type="tel"/>
+      <input id="orderPhone" placeholder="Телефон (+373...)" type="tel" maxlength="12">
       <textarea id="orderComment" placeholder="Комментарий (необязательно)"></textarea>
       <div class="row">
         <button class="btn btn-success" onclick="sendOrder()">Отправить</button>
@@ -194,9 +196,13 @@
       <input id="loginEmail" type="email" placeholder="Email">
       <input id="loginPass" type="password" placeholder="Пароль">
       <button class="btn btn-success" onclick="loginUser()">Войти</button>
-      <p style="margin-top:8px;">
-  <a href="#" onclick="resetPassword()">🔑 Забыли пароль?</a>
+      <p style="margin-top:14px;">
+  <a href="https://t.me/sn4ik23" target="_blank" class="telegram-btn">
+    <img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" alt="Техподдержка">
+    Техподдержка
+  </a>
 </p>
+
 
       <p style="margin-top:10px;">Нет аккаунта? <a href="#" onclick="toggleAuth('register')">Создать</a></p>
     </div>
