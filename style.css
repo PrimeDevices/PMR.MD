@@ -1474,3 +1474,94 @@ body {
   padding: 6px 12px;
   border-radius: 8px;
 }
+/* === 🔵 Кнопка Telegram как на скрине === */
+.telegram-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #181717;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 10px 22px;
+  border-radius: 12px;
+  transition: 0.3s ease;
+  box-shadow: 0 0 0 rgba(29, 155, 240, 0);
+  font-size: 16px;
+}
+
+.telegram-btn img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0088cc;
+  padding: 3px;
+}
+
+.telegram-btn:hover {
+  box-shadow: 0 0 18px rgba(0, 180, 255, 0.8);
+  transform: translateY(-2px);
+  background: #1da1f2;
+}
+.top-nav .nav-btn {
+  position: relative;
+}
+.top-nav .nav-btn::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  height: 2px;
+  background: #00ff99;
+  transition: width 0.3s;
+}
+.top-nav .nav-btn:hover::after {
+  width: 100%;
+}
+
+.card {
+  transition: 0.3s;
+}
+.card:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 0 20px rgba(0,255,150,0.3);
+}
+.tg-fab {
+  position: fixed;
+  right: 25px;
+  bottom: 25px;
+  background: #1da1f2;
+  color: #fff;
+  border-radius: 50%;
+  width: 55px;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  box-shadow: 0 0 15px rgba(0,180,255,0.6);
+  transition: 0.3s;
+  z-index: 9999;
+}
+.tg-fab:hover {
+  background: #00bfff;
+  box-shadow: 0 0 25px rgba(0,200,255,1);
+  transform: scale(1.1);
+}
+input:focus, textarea:focus {
+  outline: none;
+  border-color: #00ff99;
+  box-shadow: 0 0 10px #00ff99;
+  transition: 0.3s;
+}
+/* === Плавные цветные капли на фоне === */
+#bubbles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, #0a0014, #000);
+}
